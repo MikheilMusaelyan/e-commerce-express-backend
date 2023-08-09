@@ -36,8 +36,41 @@ app.use((req, res, next) => {
 });
 
 app.post('/create-customer', async (req, res) => {
-   
-}); // can I put post here? and app.use?
+    // Create a new customer object
+    const customer = await stripe.customers.create({
+        email: req.body.email,
+    });
+    // save the customer.id as stripeCustomerId
+    res.send({ customer });
+});
 
+app.post('/create-subscription', async (req, res) => { // Set the default payment method on the customerlet paymentMethod;
+    try {
+        paymentMethod = await stripe.paymentMethods.attach(
+            req.body.paymentMethodId.id,
+            { customer: req.body.customerID }
+        );
+    } catch (error) {
+        return res.status(200).send({ 
+            error: { message: error.message } 
+        });
+    }
+    
+    let updateCustomerDefaultPaymentMethod = await stripe.customers.update( 
+        req.body.customerID,
+        { 
+            invoice_settings: { 
+                default_payment_method: paymentMethod.id 
+            } 
+        }
+    );
+
+    subscription = await stripe.subscriptions.create({
+      customer: req.body.customerID,
+      items: [{ price: process.env.PRICE_ID }],
+      expand: ["latest_invoice.payment_intent"]
+    })
+    res.send(subscription)
+}); 
 
 module.exports = app
