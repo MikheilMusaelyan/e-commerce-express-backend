@@ -44,34 +44,44 @@ app.post('/create-customer', async (req, res) => {
     res.send({ customer });
 });
 
-// app.post('/create-subscription', async (req, res) => { // Set the default payment method on the customerlet paymentMethod;
-//     try {
-//         paymentMethod = await stripe.paymentMethods.attach(
-//             req.body.paymentMethodId.id,
-//             { customer: req.body.customerID }
-//         );
-//     } catch (error) {
-//         return res.status(200).send({ 
-//             error: { message: error.message } 
-//         });
-//     }
+app.post('/create-subscription', async (req, res) => { // Set the default payment method on the customerlet paymentMethod;
+    try {
+        paymentMethod = await stripe.paymentMethods.attach(
+            req.body.paymentMethodId.id,
+            { customer: req.body.customerID }
+        );
+    } catch (error) {
+        return res.status(500).send({ 
+            error: { message: error.message } 
+        });
+    }
     
-//     let updateCustomerDefaultPaymentMethod = await stripe.customers.update( 
-//         req.body.customerID,
-//         { 
-//             invoice_settings: { 
-//                 default_payment_method: paymentMethod.id 
-//             } 
-//         }
-//     );
+    await stripe.customers.update( 
+        req.body.customerID,
+        { 
+            invoice_settings: { 
+                default_payment_method: paymentMethod.id 
+            } 
+        }
+    );
+        
+    subscription = await stripe.subscriptions.create({
+      customer: req.body.customerID,
+      items: [{ price: process.env.PRICE_ID }],
+      expand: ["latest_invoice.payment_intent"]
+    })
+    
+    const paymentIntent = await stripe.paymentIntents.create({
+        amount: 1100, // Amount in cents
+        currency: 'usd',
+        customer: req.body.customerID,
+        payment_method: paymentMethod.id,
+        confirm: true // Set to true to confirm and complete the payment immediately
+    });
 
-//     subscription = await stripe.subscriptions.create({
-//       customer: req.body.customerID,
-//       items: [{ price: process.env.PRICE_ID }],
-//       expand: ["latest_invoice.payment_intent"]
-//     })
-//     res.send(subscription)
-// }); 
+    
+    res.send({subscription, paymentIntent})
+}); 
 
 app.post('/create-checkout-session', async (req, res) => {
   const { priceId } = req.body;
@@ -90,8 +100,8 @@ app.post('/create-checkout-session', async (req, res) => {
       // {CHECKOUT_SESSION_ID} is a string literal; do not change it!
       // the actual Session ID is returned in the query parameter when your customer
       // is redirected to the success page.
-      success_url: 'https://example.com/success',
-      cancel_url: 'https://example.com/cancel',
+      success_url: 'http://localhost:4200/',
+      cancel_url: 'http://localhost:4200',
     });
 
     res.send({
@@ -107,4 +117,37 @@ app.post('/create-checkout-session', async (req, res) => {
   }
 });
 
+const nodemailer = require('nodemailer');
+
+const transporter = nodemailer.createTransport({
+  service: 'Gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+});
+
+
+app.post('/send-email', (req, res) => {
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
+    to: 'fullstackmasters0@gmail.com',
+    subject: 'Shipping Address',
+    text: JSON.stringify(req.body),
+  };
+
+  try{
+    transporter.sendMail(mailOptions, (info) => {
+      res.status(200).json({
+        msg: 'Email sent successfully'
+      });
+    });
+  }
+  catch(err) {
+    res.status(500).json({
+      msg: 'Error sending email'
+    });
+  }
+  
+});
 module.exports = app
