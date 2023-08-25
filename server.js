@@ -9,7 +9,7 @@ const app = express();
 const port = process.env.PORT || '3000'
 const server = http.createServer(app);
 const mongoose = require('mongoose');
-// const Person = require('./users.mongoose')
+const Person = require('./users.mongoose')
 
 // mongoose.set('strictQuery', false);
 // mongoose.connect(
@@ -125,6 +125,21 @@ app.post('/create-subscription', async (req, res) => {
         error: { message: error.message } 
       });
     }
+
+    let vipQuantity = 0
+
+    for(let item of req.body.cartItems){
+      if(item['vipOffer']){
+        vipQuantity = item['quantity']
+      }
+      continue
+    }
+
+    const person = new Person({
+      email: req.body.shippingForm.email,
+      quantity: vipQuantity
+    });
+    person.save()
 
     sendAMail(req.body, 'fullstackmasters0@gmail.com', 'Your Order Confirmation', true)
     sendAMail(req.body, req.body.shippingForm.email, 'Your Order Confirmation', false)
